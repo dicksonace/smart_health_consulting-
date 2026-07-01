@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_config.dart';
+import 'token_storage.dart';
 
 class ApiException implements Exception {
   ApiException(this.message, {this.statusCode});
@@ -53,29 +53,14 @@ class ApiClient {
   }
 
   late final Dio _dio;
-  SharedPreferences? _prefs;
 
-  Future<SharedPreferences> get prefs async {
-    _prefs ??= await SharedPreferences.getInstance();
-    return _prefs!;
-  }
+  Future<String?> _getToken() => TokenStorage.read();
 
-  Future<String?> _getToken() async {
-    return (await prefs).getString(ApiConfig.tokenKey);
-  }
+  Future<void> saveToken(String token) => TokenStorage.write(token);
 
-  Future<void> saveToken(String token) async {
-    await (await prefs).setString(ApiConfig.tokenKey, token);
-  }
+  Future<void> clearToken() => TokenStorage.clear();
 
-  Future<void> clearToken() async {
-    await (await prefs).remove(ApiConfig.tokenKey);
-  }
-
-  Future<bool> hasToken() async {
-    final token = await _getToken();
-    return token != null && token.isNotEmpty;
-  }
+  Future<bool> hasToken() => TokenStorage.hasToken();
 
   Future<Map<String, dynamic>> get(String path, {Map<String, dynamic>? query}) async {
     try {

@@ -40,10 +40,14 @@ class SymptomResult {
     required this.urgency,
     required this.summary,
     required this.advice,
+    this.suggestedActions = const [],
+    this.disclaimer,
   });
 
   final String suggestedSpecialty;
   final String urgency;
   final String summary;
   final String advice;
+  final List<String> suggestedActions;
+  final String? disclaimer;
 }

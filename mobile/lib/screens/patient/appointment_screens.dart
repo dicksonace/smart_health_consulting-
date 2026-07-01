@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import 'package:webview_flutter/webview_flutter.dart';
+
 import '../../store/app_store.dart';
 import '../../models/appointment.dart';
 import '../../models/notification_item.dart';
@@ -26,8 +28,23 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AppStore>().fetchDoctor(widget.doctorId);
+      final store = context.read<AppStore>();
+      store.fetchDoctor(widget.doctorId);
+      store.startRealtimePolling(
+        doctorId: int.tryParse(widget.doctorId),
+        onEvents: (events) {
+          if (events.any((e) => e['type'] == 'slot_booked')) {
+            store.fetchDoctor(widget.doctorId);
+          }
+        },
+      );
     });
+  }
+
+  @override
+  void dispose() {
+    context.read<AppStore>().stopRealtimePolling();
+    super.dispose();
   }
 
   @override
@@ -368,14 +385,53 @@ class _DetailRow extends StatelessWidget {
   }
 }
 
-class VideoCallScreen extends StatelessWidget {
+class VideoCallScreen extends StatefulWidget {
   const VideoCallScreen({super.key, required this.appointmentId});
 
   final String appointmentId;
 
   @override
+  State<VideoCallScreen> createState() => _VideoCallScreenState();
+}
+
+class _VideoCallScreenState extends State<VideoCallScreen> {
+  Map<String, dynamic>? _room;
+  bool _loading = true;
+  WebViewController? _webController;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadRoom());
+  }
+
+  Future<void> _loadRoom() async {
+    try {
+      final data = await context.read<AppStore>().fetchVideoRoom(widget.appointmentId);
+      if (!mounted) return;
+      setState(() {
+        _room = data;
+        _loading = false;
+      });
+      if (data['can_join'] == true && data['join_url'] != null) {
+        _webController = WebViewController()
+          ..setJavaScriptMode(JavaScriptMode.unrestricted)
+          ..loadRequest(Uri.parse(data['join_url'] as String));
+        setState(() {});
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final appt = context.watch<AppStore>().appointmentById(appointmentId);
+    final appt = context.watch<AppStore>().appointmentById(widget.appointmentId);
+    final canJoin = _room?['can_join'] == true;
+    final joinUrl = _room?['join_url'] as String?;
 
     return Scaffold(
       backgroundColor: Colors.black87,
@@ -383,65 +439,43 @@ class VideoCallScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         title: Text(appt?.doctorName ?? 'Video Call'),
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircleAvatar(
-              radius: 60,
-              backgroundColor: AppColors.primary.withValues(alpha: 0.3),
-              child: const Icon(Icons.person, size: 60, color: Colors.white),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              appt?.doctorName ?? 'Doctor',
-              style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            const Text('Video call placeholder', style: TextStyle(color: Colors.white70)),
-            const SizedBox(height: 48),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _CallButton(icon: Icons.mic, label: 'Mute', onTap: () {}),
-                const SizedBox(width: 24),
-                _CallButton(
-                  icon: Icons.call_end,
-                  label: 'End',
-                  color: AppColors.urgent,
-                  onTap: () => context.pop(),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: Colors.white))
+          : canJoin && _webController != null
+              ? WebViewWidget(controller: _webController!)
+              : Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.videocam_off, size: 64, color: Colors.white54),
+                        const SizedBox(height: 16),
+                        Text(
+                          canJoin ? 'Loading video room...' : 'Video opens 5 minutes before your appointment.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                        if (_room?['opens_at'] != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'Opens: ${_room!['opens_at']}',
+                            style: const TextStyle(color: Colors.white54, fontSize: 12),
+                          ),
+                        ],
+                        if (joinUrl != null && !canJoin) ...[
+                          const SizedBox(height: 24),
+                          Text('Room: ${_room?['room_name']}', style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                        ],
+                        const SizedBox(height: 24),
+                        TextButton(
+                          onPressed: () => context.pop(),
+                          child: const Text('Go back', style: TextStyle(color: Colors.white)),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                const SizedBox(width: 24),
-                _CallButton(icon: Icons.videocam, label: 'Camera', onTap: () {}),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CallButton extends StatelessWidget {
-  const _CallButton({required this.icon, required this.label, required this.onTap, this.color});
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        FloatingActionButton(
-          onPressed: onTap,
-          backgroundColor: color ?? Colors.white24,
-          child: Icon(icon, color: Colors.white),
-        ),
-        const SizedBox(height: 8),
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
-      ],
     );
   }
 }

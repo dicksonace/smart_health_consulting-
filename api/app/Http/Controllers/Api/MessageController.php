@@ -8,6 +8,8 @@ use App\Models\AppNotification;
 use App\Models\Message;
 use App\Models\User;
 use App\Services\AuditLogger;
+use App\Services\PushNotificationService;
+use App\Services\RealtimeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -124,6 +126,20 @@ class MessageController extends Controller
         AuditLogger::log($sender, 'message.sent', Message::class, $message->id, [
             'receiver_id' => $receiver->id,
         ]);
+
+        RealtimeService::push((int) $validated['receiver_id'], 'new_message', [
+            'sender_id' => $sender->id,
+            'message_id' => $message->id,
+            'partner_id' => $sender->id,
+            'body_preview' => substr($validated['body'], 0, 80),
+        ]);
+
+        PushNotificationService::send(
+            $receiver,
+            'New Message',
+            substr($validated['body'], 0, 100),
+            ['type' => 'new_message', 'sender_id' => (string) $sender->id],
+        );
 
         $message->load(['sender:id,name', 'receiver:id,name']);
 

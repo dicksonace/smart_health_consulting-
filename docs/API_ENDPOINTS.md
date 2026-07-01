@@ -174,6 +174,20 @@ POST /consultations
 | GET | `/messages/{userId}` | Thread with user |
 | POST | `/messages` | Send message |
 
+### Real-time (Phase 4)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/realtime/poll` | Poll events since timestamp (`?since=ISO8601&doctor_id=`) |
+| POST | `/device-token` | Register FCM push token |
+| DELETE | `/device-token` | Remove FCM token |
+
+Event types: `new_message`, `slot_booked`, `appointment_booked`, `appointment_confirmed`
+
+### Video (Phase 5)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/appointments/{id}/video-room` | Jitsi room URL (opens 5 min before) |
+
 ### Notifications
 | Method | Endpoint | Description |
 |--------|----------|-------------|

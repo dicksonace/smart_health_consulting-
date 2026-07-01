@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'services/local_notification_service.dart';
 import 'store/app_store.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await LocalNotificationService.instance.init();
+
   final store = AppStore();
   final router = AppRouter.create(store);
 

@@ -6,10 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\SymptomCheckerLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class SymptomCheckerController extends Controller
 {
+    private const DISCLAIMER = 'This is guidance only — not a medical diagnosis. Always consult a qualified healthcare provider for proper evaluation.';
+
     /** @var array<string, array{specialty: string, urgency: string}> */
     private const SYMPTOM_RULES = [
         'chest pain' => ['specialty' => 'Cardiology', 'urgency' => 'emergency'],
@@ -27,6 +28,8 @@ class SymptomCheckerController extends Controller
         'abdominal pain' => ['specialty' => 'Gastroenterology', 'urgency' => 'high'],
         'nausea' => ['specialty' => 'General Practice', 'urgency' => 'low'],
         'fatigue' => ['specialty' => 'General Practice', 'urgency' => 'low'],
+        'dizziness' => ['specialty' => 'General Practice', 'urgency' => 'medium'],
+        'palpitations' => ['specialty' => 'Cardiology', 'urgency' => 'high'],
     ];
 
     private const URGENCY_RANK = [
@@ -44,6 +47,8 @@ class SymptomCheckerController extends Controller
         ]);
 
         $result = $this->analyzeSymptoms($validated['symptoms']);
+        $result['disclaimer'] = self::DISCLAIMER;
+        $result['suggested_actions'] = $this->suggestedActions($result['urgency'], $result['specialty']);
 
         $logData = [
             'symptoms' => $validated['symptoms'],
@@ -91,5 +96,28 @@ class SymptomCheckerController extends Controller
             'urgency' => $urgency,
             'matched_symptoms' => array_values(array_unique($matched)),
         ];
+    }
+
+    /** @return array<int, string> */
+    private function suggestedActions(string $urgency, string $specialty): array
+    {
+        return match ($urgency) {
+            'emergency' => [
+                'Call emergency services or go to the nearest emergency department immediately.',
+                'Do not rely on this app for urgent life-threatening symptoms.',
+            ],
+            'high' => [
+                'Book an urgent appointment with a '.$specialty.' specialist.',
+                'Seek in-person care within 24 hours if symptoms worsen.',
+            ],
+            'medium' => [
+                'Book a consultation with a '.$specialty.' doctor within the next few days.',
+                'Monitor symptoms and note any changes.',
+            ],
+            default => [
+                'Consider booking a routine appointment with a '.$specialty.' doctor.',
+                'Rest, stay hydrated, and monitor your symptoms.',
+            ],
+        };
     }
 }

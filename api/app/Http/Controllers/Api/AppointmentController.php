@@ -9,6 +9,8 @@ use App\Models\Appointment;
 use App\Models\Doctor;
 use App\Models\DoctorAvailability;
 use App\Services\AuditLogger;
+use App\Services\PushNotificationService;
+use App\Services\RealtimeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -106,6 +108,28 @@ class AppointmentController extends Controller
             'doctor_id' => $appointment->doctor_id,
             'scheduled_at' => $appointment->scheduled_at,
         ]);
+
+        RealtimeService::pushForDoctor($appointment->doctor_id, 'slot_booked', [
+            'availability_id' => $appointment->availability_id,
+            'appointment_id' => $appointment->id,
+        ]);
+
+        $doctorUser = $appointment->doctor->user;
+        RealtimeService::push($doctorUser->id, 'appointment_booked', [
+            'appointment_id' => $appointment->id,
+            'patient_name' => $appointment->patient->user->name ?? 'Patient',
+        ]);
+
+        RealtimeService::push($request->user()->id, 'appointment_confirmed', [
+            'appointment_id' => $appointment->id,
+        ]);
+
+        PushNotificationService::send(
+            $doctorUser,
+            'New Appointment',
+            'A patient booked an appointment for '.$appointment->scheduled_at,
+            ['type' => 'appointment_booked', 'appointment_id' => (string) $appointment->id],
+        );
 
         $appointment->load([
             'patient.user:id,name,email,phone',

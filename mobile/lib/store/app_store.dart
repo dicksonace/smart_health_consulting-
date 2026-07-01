@@ -10,6 +10,7 @@ import '../models/medical_record.dart';
 import '../models/message.dart';
 import '../models/notification_item.dart';
 import '../models/user_role.dart';
+import '../services/realtime_service.dart';
 
 class AppStore extends ChangeNotifier {
   AppStore({ApiClient? api}) : _api = api ?? ApiClient();
@@ -33,6 +34,9 @@ class AppStore extends ChangeNotifier {
   final Map<String, List<ChatMessage>> _messageCache = {};
   final Map<String, Doctor> _doctorCache = {};
   final Map<String, List<TimeSlot>> _slotCache = {};
+
+  RealtimeService? _realtime;
+  RealtimeService get realtime => _realtime ??= RealtimeService(_api);
 
   AppUser? get currentUser => _currentUser;
   bool get isLoggedIn => _currentUser != null;
@@ -331,6 +335,27 @@ class AppStore extends ChangeNotifier {
     return _api.post('/symptom-check', body: {'symptoms': symptoms});
   }
 
+  Future<Map<String, dynamic>> fetchVideoRoom(String appointmentId) async {
+    return _api.get('/appointments/$appointmentId/video-room');
+  }
+
+  Future<void> registerDeviceToken(String fcmToken) async {
+    try {
+      await _api.post('/device-token', body: {'fcm_token': fcmToken});
+    } catch (_) {}
+  }
+
+  void startRealtimePolling({
+    required void Function(List<Map<String, dynamic>> events) onEvents,
+    int? doctorId,
+  }) {
+    realtime.startPolling(onEvents: onEvents, doctorId: doctorId);
+  }
+
+  void stopRealtimePolling() {
+    realtime.stopPolling();
+  }
+
   Future<void> submitConsultation({
     required String appointmentId,
     required String diagnosis,
@@ -408,6 +433,7 @@ class AppStore extends ChangeNotifier {
     _messageCache.clear();
     _doctorCache.clear();
     _slotCache.clear();
+    stopRealtimePolling();
     _error = null;
   }
 }

@@ -1,63 +1,42 @@
 # API Roadmap — Smart Health Consulting
 
-## ✅ Completed (v1.0 — ready to use)
+## ✅ v1.0 — MVP (complete)
 
-### Core API
-- [x] Sanctum authentication (register, login, logout, `/user`)
-- [x] Patient / doctor / admin roles
-- [x] Doctors list + profile + availability
-- [x] Appointments (book, reschedule, cancel) with slot locking
-- [x] Consultations + prescriptions
-- [x] Messages + conversations
-- [x] Symptom checker (rule-based triage)
-- [x] Notifications
-- [x] Feedback + doctor rating average
-- [x] Admin stats + doctor verification
+Core API, mobile integration, security hardening, setup docs.
 
-### Security hardening (v1.0)
-- [x] Rate limiting on auth + symptom check
-- [x] Message authorization (appointment relationship required)
-- [x] Appointment policies (ownership checks)
-- [x] Doctor suspend / reactivate (admin)
-- [x] Unverified/suspended doctors blocked from booking
-- [x] Audit log for sensitive actions
-- [x] Password reset API (`/forgot-password`, `/reset-password`)
-- [x] Form Request validation classes
-- [x] 25 automated API tests
+## ✅ v1.1 — Phase 4 & 5 (complete)
 
-### Mobile integration
-- [x] Flutter app wired to API (`AppStore` + `ApiClient`)
-- [x] Patient, doctor, admin flows
-- [x] Android emulator + network config
+### Phase 4 — Real-time & notifications
+- [x] Real-time event polling (`/api/realtime/poll`)
+- [x] Live slot updates when appointments are booked
+- [x] Chat near-real-time via 3s polling + local notifications
+- [x] Email appointment reminders (24h + 1h) via scheduler
+- [x] Push notification service (FCM-ready)
+- [x] Device token registration
 
-### Documentation
-- [x] README setup (macOS, Windows, Linux)
-- [x] `SETUP_WINDOWS.md`
-- [x] `API_ENDPOINTS.md`, `DATABASE_SCHEMA.md`
-- [x] `API_SECURITY.md`, `API_TESTING.md`
-- [x] Postman collection
+### Phase 5 — Advanced features
+- [x] Jitsi video consultations (`/api/appointments/{id}/video-room`)
+- [x] Symptom checker disclaimer + suggested actions
+- [x] Secure token storage on mobile
+- [x] 32 API tests + Flutter tests
+- [x] Release APK build documented
+
+See [PHASE_4_5.md](PHASE_4_5.md) for setup and usage.
 
 ---
 
-## 🔜 Phase 4 — Real-time & notifications (future)
+## 🔜 Future enhancements
 
-- [ ] WebSocket chat (Laravel Reverb / Pusher)
-- [ ] Push notifications (FCM)
-- [ ] Email/SMS appointment reminders (Laravel scheduler)
-- [ ] Live calendar slot updates
-
-## 🔜 Phase 5 — Advanced (future)
-
-- [ ] Video calls (WebRTC / Jitsi)
-- [ ] File upload endpoint (message attachments, lab results)
-- [ ] AI-enhanced symptom checker
-- [ ] `flutter_secure_storage` for tokens
-- [ ] OpenAPI/Swagger auto-generated docs
+- [ ] Laravel Reverb WebSockets (replace polling)
+- [ ] Full Firebase FCM with `google-services.json`
+- [ ] SMS reminders (Twilio / Africa's Talking)
+- [ ] Agora branded video SDK
+- [ ] OpenAI conversational symptom flow
+- [ ] File upload for message attachments
 
 ---
-
-## Version history
 
 | Version | Date | Notes |
 |---------|------|-------|
-| 1.0.0 | 2026-07 | MVP complete — API hardened, mobile integrated, docs ready |
+| 1.0.0 | 2026-07 | MVP + security hardening |
+| 1.1.0 | 2026-07 | Phase 4 & 5 complete |

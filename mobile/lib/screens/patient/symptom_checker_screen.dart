@@ -55,6 +55,11 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
           advice: data['urgency'] == 'emergency'
               ? 'Seek emergency care immediately.'
               : 'Book a consultation when ready.',
+          suggestedActions: (data['suggested_actions'] as List?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              [],
+          disclaimer: data['disclaimer'] as String?,
         );
       });
     } catch (e) {
@@ -129,6 +134,21 @@ class _SymptomCheckerScreenState extends State<SymptomCheckerScreen> {
                         Text(_result!.summary),
                         const SizedBox(height: 8),
                         Text(_result!.advice, style: const TextStyle(color: AppColors.textSecondary)),
+                        if (_result!.suggestedActions.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          const Text('Suggested actions:', style: TextStyle(fontWeight: FontWeight.w600)),
+                          for (final action in _result!.suggestedActions)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('• '),
+                                  Expanded(child: Text(action, style: const TextStyle(fontSize: 13))),
+                                ],
+                              ),
+                            ),
+                        ],
                         const SizedBox(height: 16),
                         PrimaryButton(
                           label: 'Find ${_result!.suggestedSpecialty} Doctors',

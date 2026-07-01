@@ -4,13 +4,16 @@ use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AppointmentController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ConsultationController;
+use App\Http\Controllers\Api\DeviceTokenController;
 use App\Http\Controllers\Api\DoctorController;
 use App\Http\Controllers\Api\FeedbackController;
 use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\PatientController;
+use App\Http\Controllers\Api\RealtimeController;
 use App\Http\Controllers\Api\SymptomCheckerController;
+use App\Http\Controllers\Api\VideoCallController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', function () {
@@ -56,8 +59,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/appointments', [AppointmentController::class, 'index']);
     Route::post('/appointments', [AppointmentController::class, 'store'])->middleware('role:patient');
+    Route::get('/appointments/{appointment}/video-room', [VideoCallController::class, 'show']);
     Route::patch('/appointments/{appointment}', [AppointmentController::class, 'update']);
     Route::delete('/appointments/{appointment}', [AppointmentController::class, 'destroy']);
+
+    Route::get('/realtime/poll', [RealtimeController::class, 'poll']);
+    Route::post('/device-token', [DeviceTokenController::class, 'store']);
+    Route::delete('/device-token', [DeviceTokenController::class, 'destroy']);
 
     Route::middleware('role:doctor')->post('/consultations', [ConsultationController::class, 'store']);
 

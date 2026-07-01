@@ -348,7 +348,8 @@ Password for all accounts: **`password`**
 | File | Description |
 |------|-------------|
 | [docs/SETUP_WINDOWS.md](docs/SETUP_WINDOWS.md) | **Full Windows setup guide** (PHP, Flutter, emulator, API) |
-| [docs/API_ROADMAP.md](docs/API_ROADMAP.md) | What's done vs planned (v1.0 complete) |
+| [docs/PHASE_4_5.md](docs/PHASE_4_5.md) | Phase 4 & 5: real-time, video, reminders |
+| [docs/API_ROADMAP.md](docs/API_ROADMAP.md) | What's done vs planned (v1.1 complete) |
 | [docs/API_SECURITY.md](docs/API_SECURITY.md) | RBAC, audit logs, rate limits |
 | [docs/API_TESTING.md](docs/API_TESTING.md) | Run tests, curl examples, Postman |
 | [docs/PROJECT_WORK_PLAN.md](docs/PROJECT_WORK_PLAN.md) | Phased plan: UI → API → Integration |

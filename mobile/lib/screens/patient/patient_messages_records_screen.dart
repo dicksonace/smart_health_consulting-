@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../services/local_notification_service.dart';
 import '../../store/app_store.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
@@ -95,13 +96,29 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await context.read<AppStore>().fetchMessages(widget.conversationId);
+      final store = context.read<AppStore>();
+      await store.fetchMessages(widget.conversationId);
       if (mounted) setState(() => _loading = false);
+
+      store.startRealtimePolling(onEvents: (events) async {
+        for (final event in events) {
+          if (event['type'] == 'new_message') {
+            await store.fetchMessages(widget.conversationId);
+            final preview = event['data']?['body_preview'] as String? ?? 'New message';
+            await LocalNotificationService.instance.show(
+              id: widget.conversationId.hashCode,
+              title: 'New message',
+              body: preview,
+            );
+          }
+        }
+      });
     });
   }
 
   @override
   void dispose() {
+    context.read<AppStore>().stopRealtimePolling();
     _controller.dispose();
     super.dispose();
   }
