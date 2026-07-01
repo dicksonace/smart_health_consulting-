@@ -2,6 +2,64 @@
 
 Monorepo for the **Smart Health Consulting and Appointment Booking System** — Flutter mobile app + Laravel REST API.
 
+GCTU final-year project: patients book doctors, consult via chat/video, manage records; doctors manage schedules and consultations; admins oversee the platform.
+
+---
+
+## Features
+
+### Patient
+- Register / login with secure token storage
+- Dashboard with upcoming appointments and quick actions
+- **Symptom checker** — rule-based triage with urgency level, disclaimer, and suggested actions
+- **Find doctors** — browse by specialty, rating, and fee
+- **Book appointments** — video, in-person, or chat; live slot updates when slots are taken
+- **My appointments** — view, cancel, and reschedule
+- **Messages** — chat with doctors (near real-time polling + local notifications)
+- **Medical records** — consultation history and prescriptions
+- **Video consultations** — join Jitsi call 5 minutes before appointment
+- **Notifications** — in-app alerts for bookings and messages
+- **Feedback** — rate completed appointments
+
+### Doctor
+- Dashboard with today's schedule and upcoming appointments
+- **Manage availability** — create and view time slots
+- **Consultation room** — diagnosis, clinical notes, and prescriptions
+- **Patient history** — read-only timeline of past visits
+- **Messages** — chat with assigned patients
+- Profile and fee management
+
+### Admin
+- Platform dashboard — users, appointments, doctors, feedback stats
+- **Doctor verification** — approve new doctors
+- **Doctor moderation** — suspend or reactivate doctors
+- **Audit logs** — review security-sensitive actions
+- Reports overview
+
+### API & security
+- REST API with Laravel Sanctum authentication
+- Role-based access control (patient / doctor / admin)
+- Appointment slot locking — no double-booking
+- Message authorization — patients and doctors can only chat if they share an appointment
+- Rate limiting on login, register, and symptom check
+- Password reset (`/forgot-password`, `/reset-password`)
+- Audit logging for logins, bookings, consultations, and admin actions
+- **32 automated API tests**
+
+### Real-time & notifications (Phase 4)
+- Real-time event polling — live chat updates and slot availability
+- Email appointment reminders — 24 hours and 1 hour before (scheduler)
+- Push notification support — FCM-ready device token registration
+- In-app notification badges
+
+### Video & polish (Phase 5)
+- Jitsi video rooms for video appointments
+- Enhanced symptom checker with medical disclaimer
+- Encrypted auth token storage on mobile (`flutter_secure_storage`)
+- Release APK build support
+
+---
+
 ## Structure
 
 | Folder | Stack | Purpose |
@@ -187,7 +245,7 @@ The API runs at **`http://127.0.0.1:8000`**.
 | Health | http://127.0.0.1:8000/api/health |
 | Doctors list | http://127.0.0.1:8000/api/doctors |
 
-Run tests: `php artisan test` (25 tests)
+Run tests: `php artisan test` (32 tests)
 
 See [docs/API_ENDPOINTS.md](docs/API_ENDPOINTS.md) for the full API reference.
 See [docs/API_SECURITY.md](docs/API_SECURITY.md) for security model.
