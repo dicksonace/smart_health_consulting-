@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\DoctorController;
 use App\Http\Controllers\Api\FeedbackController;
 use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\PatientController;
 use App\Http\Controllers\Api\SymptomCheckerController;
 use Illuminate\Support\Facades\Route;
@@ -16,12 +17,19 @@ Route::get('/health', function () {
     return response()->json([
         'status' => 'ok',
         'app' => config('app.name'),
+        'version' => '1.0.0',
     ]);
 });
 
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
-Route::post('/symptom-check', [SymptomCheckerController::class, 'store']);
+Route::middleware('throttle:auth')->group(function () {
+    Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/forgot-password', [PasswordResetController::class, 'forgot']);
+    Route::post('/reset-password', [PasswordResetController::class, 'reset']);
+});
+
+Route::post('/symptom-check', [SymptomCheckerController::class, 'store'])
+    ->middleware('throttle:symptom-check');
 
 Route::get('/doctors', [DoctorController::class, 'index']);
 Route::get('/doctors/{doctor}', [DoctorController::class, 'show']);
@@ -65,6 +73,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:admin')->prefix('admin')->group(function () {
         Route::get('/stats', [AdminController::class, 'stats']);
         Route::get('/doctors', [AdminController::class, 'doctors']);
+        Route::get('/audit-logs', [AdminController::class, 'auditLogs']);
         Route::patch('/doctors/{doctor}/verify', [AdminController::class, 'verifyDoctor']);
+        Route::patch('/doctors/{doctor}/suspend', [AdminController::class, 'suspendDoctor']);
+        Route::patch('/doctors/{doctor}/reactivate', [AdminController::class, 'reactivateDoctor']);
     });
 });

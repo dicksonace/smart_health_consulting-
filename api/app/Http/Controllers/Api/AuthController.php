@@ -3,37 +3,23 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\LoginRequest;
+use App\Http\Requests\Api\RegisterRequest;
 use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\User;
+use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    public function register(Request $request): JsonResponse
+    public function register(RegisterRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'phone' => ['nullable', 'string', 'max:20'],
-            'role' => ['required', Rule::in(['patient', 'doctor'])],
-            'specialty' => ['required_if:role,doctor', 'string', 'max:255'],
-            'consultation_fee' => ['required_if:role,doctor', 'numeric', 'min:0'],
-            'qualifications' => ['nullable', 'string'],
-            'years_experience' => ['nullable', 'integer', 'min:0'],
-            'bio' => ['nullable', 'string'],
-            'date_of_birth' => ['nullable', 'date'],
-            'gender' => ['nullable', 'string', 'max:50'],
-            'blood_group' => ['nullable', 'string', 'max:10'],
-            'allergies' => ['nullable', 'string'],
-            'medical_summary' => ['nullable', 'string'],
-        ]);
+        $validated = $request->validated();
 
         $user = DB::transaction(function () use ($validated) {
             $user = User::create([
@@ -69,18 +55,19 @@ class AuthController extends Controller
 
         $token = $user->createToken('auth-token')->plainTextToken;
 
+        AuditLogger::log($user, 'auth.register', User::class, $user->id, [
+            'role' => $user->role,
+        ]);
+
         return response()->json([
             'user' => $this->formatUser($user->fresh(['patient', 'doctor'])),
             'token' => $token,
         ], 201);
     }
 
-    public function login(Request $request): JsonResponse
+    public function login(LoginRequest $request): JsonResponse
     {
-        $credentials = $request->validate([
-            'email' => ['required', 'email'],
-            'password' => ['required', 'string'],
-        ]);
+        $credentials = $request->validated();
 
         if (! Auth::attempt($credentials)) {
             throw ValidationException::withMessages([
@@ -92,6 +79,8 @@ class AuthController extends Controller
         $user = Auth::user();
         $token = $user->createToken('auth-token')->plainTextToken;
 
+        AuditLogger::log($user, 'auth.login', User::class, $user->id);
+
         return response()->json([
             'user' => $this->formatUser($user->load(['patient', 'doctor'])),
             'token' => $token,
@@ -100,7 +89,9 @@ class AuthController extends Controller
 
     public function logout(Request $request): JsonResponse
     {
-        $request->user()->currentAccessToken()->delete();
+        $user = $request->user();
+        AuditLogger::log($user, 'auth.logout', User::class, $user->id);
+        $user->currentAccessToken()->delete();
 
         return response()->json(['message' => 'Logged out successfully.']);
     }

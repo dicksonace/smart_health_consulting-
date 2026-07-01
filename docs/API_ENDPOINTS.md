@@ -57,6 +57,28 @@ POST /login
 ```
 Returns `{ "user": {...}, "token": "..." }`.
 
+### Forgot password
+```
+POST /forgot-password
+```
+```json
+{ "email": "alice@health.test" }
+```
+When `APP_DEBUG=true`, response includes `debug_token` for testing.
+
+### Reset password
+```
+POST /reset-password
+```
+```json
+{
+  "email": "alice@health.test",
+  "token": "token-from-forgot-password",
+  "password": "newpassword123",
+  "password_confirmation": "newpassword123"
+}
+```
+
 ### Symptom check (rule-based triage)
 ```
 POST /symptom-check
@@ -170,8 +192,20 @@ POST /feedback
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/admin/stats` | Platform statistics |
-| GET | `/admin/doctors` | All doctors |
+| GET | `/admin/doctors` | All doctors (filter: `?is_verified=0&is_suspended=0`) |
+| GET | `/admin/audit-logs` | Security audit trail (`?action=auth.login`) |
 | PATCH | `/admin/doctors/{id}/verify` | Approve doctor |
+| PATCH | `/admin/doctors/{id}/suspend` | Suspend doctor |
+| PATCH | `/admin/doctors/{id}/reactivate` | Reactivate suspended doctor |
+
+> **Security:** Admin cannot access `/patient/records` or message content. See [API_SECURITY.md](API_SECURITY.md).
+
+### Rate limits
+
+| Routes | Limit |
+|--------|-------|
+| `/login`, `/register`, `/forgot-password`, `/reset-password` | 10/min per IP |
+| `/symptom-check` | 30/min per IP |
 
 ---
 
@@ -180,7 +214,10 @@ POST /feedback
 - **No double-booking:** booking uses DB transaction + row lock on availability slot.
 - **Cancel frees slot:** cancelled appointments release the availability slot.
 - **RBAC:** patients/doctors/admins only access permitted routes.
-- **Admin:** sees appointment counts but not private medical notes via dedicated endpoints.
+- **Messages:** patient ↔ doctor only, with an existing appointment.
+- **Doctors:** must be verified and not suspended to appear in public list or accept bookings.
+- **Audit log:** sensitive actions recorded in `audit_logs` table.
+- **Admin:** sees stats and audit logs but not private medical records.
 
 ---
 
@@ -199,4 +236,4 @@ curl -s http://127.0.0.1:8000/api/appointments \
 
 ---
 
-*Phase 2 complete — ready for Phase 3 mobile ↔ API connection.*
+*v1.0 — API hardened and ready for production use. See [API_ROADMAP.md](API_ROADMAP.md).*

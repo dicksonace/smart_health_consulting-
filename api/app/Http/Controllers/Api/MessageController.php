@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\StoreMessageRequest;
 use App\Models\AppNotification;
 use App\Models\Message;
 use App\Models\User;
+use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 class MessageController extends Controller
 {
@@ -25,8 +28,12 @@ class MessageController extends Controller
             ->filter(fn ($id) => $id !== $userId)
             ->values();
 
-        $conversations = $partnerIds->map(function ($partnerId) use ($userId) {
+        $conversations = $partnerIds->map(function ($partnerId) use ($userId, $request) {
             $partner = User::select('id', 'name', 'email', 'role')->find($partnerId);
+
+            if (! $partner || ! Gate::forUser($request->user())->allows('view-message-thread', $partner)) {
+                return null;
+            }
 
             $lastMessage = Message::query()
                 ->where(function ($q) use ($userId, $partnerId) {
@@ -49,13 +56,17 @@ class MessageController extends Controller
                 'last_message' => $lastMessage,
                 'unread_count' => $unreadCount,
             ];
-        })->sortByDesc(fn ($c) => $c['last_message']?->created_at)->values();
+        })->filter()->sortByDesc(fn ($c) => $c['last_message']?->created_at)->values();
 
         return response()->json($conversations);
     }
 
     public function index(Request $request, User $user): JsonResponse
     {
+        if (! Gate::forUser($request->user())->allows('view-message-thread', $user)) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
         $authUser = $request->user();
 
         $messages = Message::query()
@@ -75,21 +86,21 @@ class MessageController extends Controller
             ->whereNull('read_at')
             ->update(['read_at' => now()]);
 
+        AuditLogger::log($authUser, 'message.thread_viewed', User::class, $user->id);
+
         return response()->json($messages);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(StoreMessageRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'receiver_id' => ['required', 'exists:users,id'],
-            'body' => ['required', 'string'],
-            'attachment_path' => ['nullable', 'string', 'max:500'],
-        ]);
-
+        $validated = $request->validated();
         $sender = $request->user();
+        $receiver = User::findOrFail($validated['receiver_id']);
 
-        if ((int) $validated['receiver_id'] === $sender->id) {
-            return response()->json(['message' => 'Cannot send a message to yourself.'], 422);
+        if (! Gate::forUser($sender)->allows('send-message', $receiver)) {
+            return response()->json([
+                'message' => 'You can only message doctors or patients you have an appointment with.',
+            ], 403);
         }
 
         $message = DB::transaction(function () use ($validated, $sender) {
@@ -109,6 +120,10 @@ class MessageController extends Controller
 
             return $message;
         });
+
+        AuditLogger::log($sender, 'message.sent', Message::class, $message->id, [
+            'receiver_id' => $receiver->id,
+        ]);
 
         $message->load(['sender:id,name', 'receiver:id,name']);
 

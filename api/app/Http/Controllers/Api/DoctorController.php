@@ -15,7 +15,8 @@ class DoctorController extends Controller
     {
         $query = Doctor::query()
             ->with('user:id,name,email,phone')
-            ->where('is_verified', true);
+            ->where('is_verified', true)
+            ->where('is_suspended', false);
 
         if ($request->filled('specialty')) {
             $query->where('specialty', 'like', '%'.$request->string('specialty').'%');
@@ -40,6 +41,10 @@ class DoctorController extends Controller
 
     public function show(Doctor $doctor): JsonResponse
     {
+        if (! $doctor->is_verified || $doctor->is_suspended) {
+            return response()->json(['message' => 'Doctor not found.'], 404);
+        }
+
         $doctor->load([
             'user:id,name,email,phone',
             'availability' => fn ($q) => $q->where('status', 'available')

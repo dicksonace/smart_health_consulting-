@@ -16,6 +16,7 @@ class Doctor extends Model
         'consultation_fee',
         'bio',
         'is_verified',
+        'is_suspended',
         'rating_avg',
     ];
 
@@ -24,6 +25,7 @@ class Doctor extends Model
         return [
             'consultation_fee' => 'decimal:2',
             'is_verified' => 'boolean',
+            'is_suspended' => 'boolean',
             'rating_avg' => 'decimal:2',
         ];
     }

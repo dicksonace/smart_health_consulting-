@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\StoreAppointmentRequest;
 use App\Models\AppNotification;
 use App\Models\Appointment;
+use App\Models\Doctor;
 use App\Models\DoctorAvailability;
+use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -42,7 +45,7 @@ class AppointmentController extends Controller
         return response()->json($query->paginate(15));
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(StoreAppointmentRequest $request): JsonResponse
     {
         $patient = $request->user()->patient;
 
@@ -50,13 +53,13 @@ class AppointmentController extends Controller
             return response()->json(['message' => 'Patient profile not found.'], 404);
         }
 
-        $validated = $request->validate([
-            'doctor_id' => ['required', 'exists:doctors,id'],
-            'availability_id' => ['required', 'exists:doctor_availability,id'],
-            'type' => ['required', Rule::in(['in_person', 'video', 'chat'])],
-            'reason' => ['nullable', 'string'],
-            'urgency' => ['nullable', Rule::in(['low', 'medium', 'high', 'emergency'])],
-        ]);
+        $validated = $request->validated();
+
+        $doctor = Doctor::find($validated['doctor_id']);
+
+        if (! $doctor || ! $doctor->is_verified || $doctor->is_suspended) {
+            return response()->json(['message' => 'This doctor is not available for booking.'], 422);
+        }
 
         try {
             $appointment = DB::transaction(function () use ($validated, $patient) {
@@ -99,6 +102,11 @@ class AppointmentController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
+        AuditLogger::log($request->user(), 'appointment.created', Appointment::class, $appointment->id, [
+            'doctor_id' => $appointment->doctor_id,
+            'scheduled_at' => $appointment->scheduled_at,
+        ]);
+
         $appointment->load([
             'patient.user:id,name,email,phone',
             'doctor.user:id,name,email,phone',
@@ -110,11 +118,7 @@ class AppointmentController extends Controller
 
     public function update(Request $request, Appointment $appointment): JsonResponse
     {
-        $user = $request->user();
-
-        if (! $this->canManageAppointment($user, $appointment)) {
-            return response()->json(['message' => 'Forbidden.'], 403);
-        }
+        $this->authorize('update', $appointment);
 
         if ($appointment->status === 'cancelled') {
             return response()->json(['message' => 'Cannot reschedule a cancelled appointment.'], 422);
@@ -158,6 +162,8 @@ class AppointmentController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
+        AuditLogger::log($request->user(), 'appointment.rescheduled', Appointment::class, $appointment->id);
+
         $appointment->load([
             'patient.user:id,name,email,phone',
             'doctor.user:id,name,email,phone',
@@ -169,11 +175,7 @@ class AppointmentController extends Controller
 
     public function destroy(Request $request, Appointment $appointment): JsonResponse
     {
-        $user = $request->user();
-
-        if (! $this->canManageAppointment($user, $appointment)) {
-            return response()->json(['message' => 'Forbidden.'], 403);
-        }
+        $this->authorize('delete', $appointment);
 
         if ($appointment->status === 'cancelled') {
             return response()->json(['message' => 'Appointment is already cancelled.'], 422);
@@ -188,23 +190,8 @@ class AppointmentController extends Controller
             }
         });
 
+        AuditLogger::log($request->user(), 'appointment.cancelled', Appointment::class, $appointment->id);
+
         return response()->json(['message' => 'Appointment cancelled successfully.']);
-    }
-
-    private function canManageAppointment($user, Appointment $appointment): bool
-    {
-        if ($user->isAdmin()) {
-            return true;
-        }
-
-        if ($user->isPatient() && $user->patient?->id === $appointment->patient_id) {
-            return true;
-        }
-
-        if ($user->isDoctor() && $user->doctor?->id === $appointment->doctor_id) {
-            return true;
-        }
-
-        return false;
     }
 }

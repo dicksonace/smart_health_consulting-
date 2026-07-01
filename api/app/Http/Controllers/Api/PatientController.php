@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ConsultationRecord;
 use App\Models\Prescription;
+use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -71,6 +72,10 @@ class PatientController extends Controller
             ])
             ->orderByDesc('created_at')
             ->paginate(15);
+
+        AuditLogger::log($request->user(), 'patient.records_viewed', null, null, [
+            'patient_id' => $patient->id,
+        ]);
 
         return response()->json($records);
     }

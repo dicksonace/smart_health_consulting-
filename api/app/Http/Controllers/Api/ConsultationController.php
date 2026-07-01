@@ -3,16 +3,17 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\StoreConsultationRequest;
 use App\Models\Appointment;
 use App\Models\ConsultationRecord;
 use App\Models\Prescription;
+use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class ConsultationController extends Controller
 {
-    public function store(Request $request): JsonResponse
+    public function store(StoreConsultationRequest $request): JsonResponse
     {
         $doctor = $request->user()->doctor;
 
@@ -20,18 +21,7 @@ class ConsultationController extends Controller
             return response()->json(['message' => 'Doctor profile not found.'], 404);
         }
 
-        $validated = $request->validate([
-            'appointment_id' => ['required', 'exists:appointments,id'],
-            'diagnosis' => ['nullable', 'string'],
-            'notes' => ['nullable', 'string'],
-            'recommendations' => ['nullable', 'string'],
-            'prescriptions' => ['nullable', 'array'],
-            'prescriptions.*.medicine_name' => ['required_with:prescriptions', 'string', 'max:255'],
-            'prescriptions.*.dosage' => ['required_with:prescriptions', 'string', 'max:255'],
-            'prescriptions.*.duration' => ['required_with:prescriptions', 'string', 'max:255'],
-            'prescriptions.*.instructions' => ['nullable', 'string'],
-        ]);
-
+        $validated = $request->validated();
         $appointment = Appointment::findOrFail($validated['appointment_id']);
 
         if ($appointment->doctor_id !== $doctor->id) {
@@ -64,6 +54,11 @@ class ConsultationController extends Controller
 
             return $record;
         });
+
+        AuditLogger::log($request->user(), 'consultation.created', ConsultationRecord::class, $record->id, [
+            'appointment_id' => $appointment->id,
+            'patient_id' => $appointment->patient_id,
+        ]);
 
         $record->load('prescriptions');
 

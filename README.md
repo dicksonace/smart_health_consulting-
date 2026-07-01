@@ -52,13 +52,68 @@ export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
 
 ### Install prerequisites (Windows)
 
-1. Install [PHP 8.3+](https://windows.php.net/download/) and add to PATH
-2. Install [Composer](https://getcomposer.org/download/)
-3. Install [Flutter](https://docs.flutter.dev/get-started/install/windows)
-4. Install [Android Studio](https://developer.android.com/studio) (includes SDK + emulator)
-5. Set environment variables:
-   - `ANDROID_HOME` = `C:\Users\<you>\AppData\Local\Android\Sdk`
-   - Add `%ANDROID_HOME%\platform-tools` and `%ANDROID_HOME%\cmdline-tools\latest\bin` to PATH
+See the full walkthrough: **[docs/SETUP_WINDOWS.md](docs/SETUP_WINDOWS.md)**
+
+#### 1. PHP 8.3+
+
+Download from https://windows.php.net/download/ (Thread Safe ZIP), extract to `C:\php`, and add to PATH.
+
+Edit `php.ini` — uncomment these extensions:
+```ini
+extension=curl
+extension=fileinfo
+extension=mbstring
+extension=openssl
+extension=pdo_sqlite
+extension=sqlite3
+```
+
+Verify in **PowerShell**:
+```powershell
+php -v
+```
+
+> XAMPP users: default PHP 8.2 is too old for Laravel 13. Upgrade XAMPP or install standalone PHP 8.3+.
+
+#### 2. Composer
+
+Download **Composer-Setup.exe** from https://getcomposer.org/download/ and run the installer.
+
+```powershell
+composer -V
+```
+
+#### 3. Flutter
+
+1. Download SDK from https://docs.flutter.dev/get-started/install/windows
+2. Extract to `C:\src\flutter` (no spaces in path)
+3. Add `C:\src\flutter\bin` to PATH
+
+```powershell
+flutter doctor
+```
+
+#### 4. Android Studio + SDK
+
+1. Install https://developer.android.com/studio
+2. In **Settings → Android SDK**, install **API 34** and SDK tools (Emulator, Platform-Tools, NDK 28.2)
+3. Set environment variables (**System Properties → Environment Variables**):
+
+| Variable | Value |
+|----------|-------|
+| `ANDROID_HOME` | `C:\Users\<you>\AppData\Local\Android\Sdk` |
+| PATH (add) | `%ANDROID_HOME%\platform-tools` |
+| PATH (add) | `%ANDROID_HOME%\emulator` |
+| PATH (add) | `%ANDROID_HOME%\cmdline-tools\latest\bin` |
+
+4. Accept Android licenses:
+```powershell
+flutter doctor --android-licenses
+```
+
+#### 5. Git
+
+Download from https://git-scm.com/download/win (used to clone the repo).
 
 ### Install prerequisites (Linux)
 
@@ -96,6 +151,8 @@ cd smart_health_consulting-
 
 ## 1. API setup (Laravel)
 
+### macOS / Linux
+
 ```bash
 cd api
 
@@ -110,6 +167,19 @@ php artisan migrate:fresh --seed
 php artisan serve
 ```
 
+### Windows (PowerShell)
+
+```powershell
+cd api
+
+composer install
+copy .env.example .env
+php artisan key:generate
+New-Item -ItemType File -Path database\database.sqlite -Force
+php artisan migrate:fresh --seed
+php artisan serve
+```
+
 The API runs at **`http://127.0.0.1:8000`**.
 
 | Check | URL |
@@ -117,13 +187,10 @@ The API runs at **`http://127.0.0.1:8000`**.
 | Health | http://127.0.0.1:8000/api/health |
 | Doctors list | http://127.0.0.1:8000/api/doctors |
 
-Run tests:
-
-```bash
-php artisan test
-```
+Run tests: `php artisan test` (25 tests)
 
 See [docs/API_ENDPOINTS.md](docs/API_ENDPOINTS.md) for the full API reference.
+See [docs/API_SECURITY.md](docs/API_SECURITY.md) for security model.
 
 ---
 
@@ -161,6 +228,21 @@ flutter emulators --launch SmartHealth_Emulator
 ```
 
 > On **Intel Mac/PC**, replace `arm64-v8a` with `x86_64` in the system image and AVD commands.
+
+### Option C — Command line (Windows PowerShell)
+
+```powershell
+sdkmanager --licenses
+
+sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "emulator" `
+  "system-images;android-34;google_apis;x86_64" "ndk;28.2.13676358"
+
+avdmanager create avd -n SmartHealth_Emulator -k "system-images;android-34;google_apis;x86_64" -d pixel_7 --force
+
+flutter emulators --launch SmartHealth_Emulator
+```
+
+> Full Windows emulator guide: [docs/SETUP_WINDOWS.md](docs/SETUP_WINDOWS.md#step-5--create-an-android-emulator)
 
 ### Verify emulator is running
 
@@ -211,6 +293,8 @@ Config file: [`mobile/lib/api/api_config.dart`](mobile/lib/api/api_config.dart)
 
 Open **two terminals**:
 
+### macOS / Linux
+
 **Terminal 1 — API:**
 ```bash
 cd api
@@ -223,6 +307,21 @@ php artisan serve
 cd mobile
 flutter emulators --launch SmartHealth_Emulator   # skip if already running
 flutter run -d emulator-5554
+```
+
+### Windows (PowerShell)
+
+**Terminal 1 — API:**
+```powershell
+cd C:\path\to\smart_health_consulting-\api
+php artisan serve
+```
+
+**Terminal 2 — Mobile:**
+```powershell
+cd C:\path\to\smart_health_consulting-\mobile
+flutter emulators --launch SmartHealth_Emulator   # skip if already running
+flutter run
 ```
 
 Quick test flow:
@@ -248,6 +347,10 @@ Password for all accounts: **`password`**
 
 | File | Description |
 |------|-------------|
+| [docs/SETUP_WINDOWS.md](docs/SETUP_WINDOWS.md) | **Full Windows setup guide** (PHP, Flutter, emulator, API) |
+| [docs/API_ROADMAP.md](docs/API_ROADMAP.md) | What's done vs planned (v1.0 complete) |
+| [docs/API_SECURITY.md](docs/API_SECURITY.md) | RBAC, audit logs, rate limits |
+| [docs/API_TESTING.md](docs/API_TESTING.md) | Run tests, curl examples, Postman |
 | [docs/PROJECT_WORK_PLAN.md](docs/PROJECT_WORK_PLAN.md) | Phased plan: UI → API → Integration |
 | [docs/PHASE_1_UI_CHECKLIST.md](docs/PHASE_1_UI_CHECKLIST.md) | Screen-by-screen UI checklist |
 | [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) | Database tables (12 tables) |
@@ -259,12 +362,16 @@ Password for all accounts: **`password`**
 
 | Problem | Fix |
 |---------|-----|
-| `composer install` fails on PHP version | Use PHP 8.3+: `brew install php` then `export PATH="/opt/homebrew/bin:$PATH"` |
-| Gradle NDK install error | Run `sdkmanager "ndk;28.2.13676358"` or delete corrupted `$ANDROID_HOME/ndk/` folder and reinstall |
+| `composer install` fails on PHP version (macOS) | Use PHP 8.3+: `brew install php` then `export PATH="/opt/homebrew/bin:$PATH"` |
+| `composer install` fails on PHP version (Windows) | Install PHP 8.3+ from windows.php.net; add to PATH; run `php -v` in a new terminal |
+| `php` / `flutter` not recognized (Windows) | Add install folders to PATH via Environment Variables; open a **new** PowerShell window |
+| SQLite extension missing (Windows) | In `php.ini`, uncomment `extension=pdo_sqlite` and `extension=sqlite3` |
+| Gradle NDK install error | Run `sdkmanager "ndk;28.2.13676358"` or delete corrupted NDK folder and reinstall |
 | App can't reach API on emulator | Ensure `php artisan serve` is running; Android uses `10.0.2.2` not `127.0.0.1` |
 | Navigation bounces back to home | Fixed in `main.dart` — router must be created once at startup |
 | `flutter doctor` Android errors | Run `flutter doctor --android-licenses` and accept all |
 | Emulator not listed | Run `flutter emulators --launch <name>` then `flutter devices` |
+| Emulator slow on Windows | Enable **Windows Hypervisor Platform** in Windows Features; use x86_64 system image |
 
 ---
 

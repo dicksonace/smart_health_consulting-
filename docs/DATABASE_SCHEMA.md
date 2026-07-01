@@ -65,6 +65,7 @@ Shared authentication for all roles.
 | consultation_fee | decimal(10,2) | |
 | bio | text nullable | |
 | is_verified | boolean default false | admin approves |
+| is_suspended | boolean default false | admin suspends — hidden from public list |
 | rating_avg | decimal(3,2) default 0 | computed from feedback |
 | created_at / updated_at | timestamps | |
 
@@ -190,11 +191,14 @@ Real-time slot management — **critical for no double-booking**.
 | Column | Type | Notes |
 |--------|------|-------|
 | id | bigint PK | |
-| user_id | FK nullable | |
-| action | string | e.g. `record.view`, `appointment.create` |
-| subject_type / subject_id | morph nullable | |
+| user_id | FK → users nullable | who performed the action |
+| action | string | e.g. `auth.login`, `appointment.created` |
+| auditable_type | string nullable | model class name |
+| auditable_id | bigint nullable | related record id |
 | ip_address | string nullable | |
-| created_at | timestamp | |
+| user_agent | text nullable | |
+| metadata | json nullable | extra context |
+| created_at / updated_at | timestamps | |
 
 ---
 
@@ -203,8 +207,10 @@ Real-time slot management — **critical for no double-booking**.
 1. **Booking transaction:** Lock availability row → create appointment → set status `booked` (rollback on failure).
 2. **Cancel:** Set appointment `cancelled` → set availability `available`.
 3. **RBAC:** Middleware checks `role` on every sensitive route.
-4. **Admin:** Can query appointments count but joins exclude `consultation_records.notes` and `messages.body`.
+4. **Messages:** Patient ↔ doctor only, with confirmed/completed appointment.
+5. **Doctors:** `is_verified` and `is_suspended` control public visibility and booking.
+6. **Admin:** Stats and audit logs only — no patient medical records endpoint access.
 
 ---
 
-*Implement in Phase 2 via Laravel migrations.*
+*v1.0 implemented — see [API_SECURITY.md](API_SECURITY.md).*
