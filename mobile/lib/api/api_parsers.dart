@@ -1,3 +1,4 @@
+import 'api_config.dart';
 import '../models/app_user.dart';
 import '../models/appointment.dart';
 import '../models/doctor.dart';
@@ -74,6 +75,7 @@ class ApiParsers {
       status: _parseStatus(json['status'] as String?),
       reason: json['reason'] as String?,
       urgency: _parseUrgency(json['urgency'] as String?),
+      hasFeedback: json['feedback'] != null,
     );
   }
 
@@ -161,13 +163,30 @@ class ApiParsers {
   }
 
   static ChatMessage messageFromJson(Map<String, dynamic> json) {
+    final attachmentPath = json['attachment_path'] as String?;
     return ChatMessage(
       id: json['id'].toString(),
       senderId: json['sender_id'].toString(),
       body: json['body'] as String? ?? '',
       sentAt: DateTime.parse(json['created_at'] as String),
       isRead: json['read_at'] != null,
+      attachmentUrl: _attachmentUrlFromPath(attachmentPath),
+      attachmentMimeType: _mimeFromPath(attachmentPath),
     );
+  }
+
+  static String? _attachmentUrlFromPath(String? path) {
+    if (path == null || path.isEmpty) return null;
+    return '${ApiConfig.mediaBaseUrl}/storage/$path';
+  }
+
+  static String? _mimeFromPath(String? path) {
+    if (path == null || path.isEmpty) return null;
+    final lower = path.toLowerCase();
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    return 'image/jpeg';
   }
 
   static AppNotification notificationFromJson(Map<String, dynamic> json) {

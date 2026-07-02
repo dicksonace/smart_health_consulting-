@@ -17,6 +17,7 @@ class Appointment {
     required this.status,
     this.reason,
     this.urgency = UrgencyLevel.low,
+    this.hasFeedback = false,
   });
 
   final String id;
@@ -30,6 +31,7 @@ class Appointment {
   AppointmentStatus status;
   final String? reason;
   final UrgencyLevel urgency;
+  final bool hasFeedback;
 
   String get typeLabel {
     switch (type) {

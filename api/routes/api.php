@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\ConsultationController;
 use App\Http\Controllers\Api\DeviceTokenController;
 use App\Http\Controllers\Api\DoctorController;
 use App\Http\Controllers\Api\FeedbackController;
+use App\Http\Controllers\Api\MessageAttachmentController;
 use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PasswordResetController;
@@ -72,6 +73,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/conversations', [MessageController::class, 'conversations']);
     Route::get('/messages/{user}', [MessageController::class, 'index']);
     Route::post('/messages', [MessageController::class, 'store']);
+    Route::post('/message-attachments', [MessageAttachmentController::class, 'store']);
 
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead']);

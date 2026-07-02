@@ -27,6 +27,7 @@ class AppointmentController extends Controller
                 'patient.user:id,name,email,phone',
                 'doctor.user:id,name,email,phone',
                 'availability',
+                'feedback:id,appointment_id',
             ])
             ->orderByDesc('scheduled_at');
 

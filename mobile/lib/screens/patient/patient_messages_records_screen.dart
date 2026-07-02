@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../api/api_client.dart';
+import '../../models/message.dart';
 import '../../services/local_notification_service.dart';
 import '../../store/app_store.dart';
 import '../../theme/app_theme.dart';
@@ -91,19 +94,21 @@ class ChatThreadScreen extends StatefulWidget {
 class _ChatThreadScreenState extends State<ChatThreadScreen> {
   final _controller = TextEditingController();
   bool _loading = true;
+  bool _sending = false;
+  late final AppStore _store;
 
   @override
   void initState() {
     super.initState();
+    _store = context.read<AppStore>();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final store = context.read<AppStore>();
-      await store.fetchMessages(widget.conversationId);
+      await _store.fetchMessages(widget.conversationId);
       if (mounted) setState(() => _loading = false);
 
-      store.startRealtimePolling(onEvents: (events) async {
+      _store.startRealtimePolling(onEvents: (events) async {
         for (final event in events) {
           if (event['type'] == 'new_message') {
-            await store.fetchMessages(widget.conversationId);
+            await _store.fetchMessages(widget.conversationId);
             final preview = event['data']?['body_preview'] as String? ?? 'New message';
             await LocalNotificationService.instance.show(
               id: widget.conversationId.hashCode,
@@ -118,9 +123,157 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
 
   @override
   void dispose() {
-    context.read<AppStore>().stopRealtimePolling();
+    _store.stopRealtimePolling();
     _controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _sendText(AppStore store) async {
+    if (_controller.text.trim().isEmpty) return;
+    final body = _controller.text.trim();
+    _controller.clear();
+    setState(() => _sending = true);
+    try {
+      await store.sendMessage(widget.conversationId, body);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: AppColors.urgent),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: AppColors.urgent),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _pickAndSendImage(AppStore store, ImageSource source) async {
+    final picked = await ImagePicker().pickImage(source: source, imageQuality: 85);
+    if (picked == null || !mounted) return;
+
+    setState(() => _sending = true);
+    try {
+      final upload = await store.uploadMessageAttachment(picked.path);
+      final path = upload['path'] as String?;
+      if (path == null || path.isEmpty) {
+        throw ApiException('Upload failed. Please try again.');
+      }
+      final caption = _controller.text.trim();
+      if (caption.isNotEmpty) _controller.clear();
+      await store.sendMessage(
+        widget.conversationId,
+        caption,
+        attachmentPath: path,
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: AppColors.urgent),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), backgroundColor: AppColors.urgent),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  void _showAttachOptions(AppStore store) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: AppColors.primary),
+              title: const Text('Photo or GIF from gallery'),
+              subtitle: const Text('Send images and animated GIFs'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickAndSendImage(store, ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: AppColors.primary),
+              title: const Text('Take a photo'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickAndSendImage(store, ImageSource.camera);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMessageBubble(ChatMessage msg, bool isMe) {
+    final textColor = isMe ? Colors.white : AppColors.textPrimary;
+    final timeColor = isMe ? Colors.white70 : AppColors.textSecondary;
+
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+        decoration: BoxDecoration(
+          color: isMe ? AppColors.primary : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: isMe ? null : Border.all(color: Colors.grey.shade200),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            if (msg.hasAttachment) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  msg.attachmentUrl!,
+                  width: 220,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, progress) {
+                    if (progress == null) return child;
+                    return SizedBox(
+                      width: 220,
+                      height: 160,
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          value: progress.expectedTotalBytes != null
+                              ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes!
+                              : null,
+                        ),
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, _, __) => Container(
+                    width: 220,
+                    height: 120,
+                    color: Colors.black12,
+                    alignment: Alignment.center,
+                    child: const Icon(Icons.broken_image_outlined),
+                  ),
+                ),
+              ),
+              if (msg.body.isNotEmpty) const SizedBox(height: 8),
+            ],
+            if (msg.body.isNotEmpty)
+              Text(msg.body, style: TextStyle(color: textColor)),
+            const SizedBox(height: 4),
+            Text(
+              DateFormat('h:mm a').format(msg.sentAt),
+              style: TextStyle(fontSize: 10, color: timeColor),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -156,36 +309,7 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
               itemBuilder: (context, i) {
                 final msg = conv.messages[i];
                 final isMe = msg.senderId == userId;
-                return Align(
-                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-                    decoration: BoxDecoration(
-                      color: isMe ? AppColors.primary : Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: isMe ? null : Border.all(color: Colors.grey.shade200),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          msg.body,
-                          style: TextStyle(color: isMe ? Colors.white : AppColors.textPrimary),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          DateFormat('h:mm a').format(msg.sentAt),
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: isMe ? Colors.white70 : AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
+                return _buildMessageBubble(msg, isMe);
               },
             ),
           ),
@@ -194,27 +318,33 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.attach_file),
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('File attach (mock)')),
-                    );
-                  },
+                  icon: const Icon(Icons.image_outlined, color: AppColors.primary),
+                  tooltip: 'Send photo or GIF',
+                  onPressed: _sending ? null : () => _showAttachOptions(store),
                 ),
                 Expanded(
                   child: TextField(
                     controller: _controller,
-                    decoration: const InputDecoration(hintText: 'Type a message...'),
+                    maxLines: 4,
+                    minLines: 1,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _sending ? null : _sendText(store),
+                    decoration: const InputDecoration(
+                      hintText: 'Type a message...',
+                      helperText: 'Use the image button for photos & GIFs',
+                      helperMaxLines: 1,
+                    ),
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.send, color: AppColors.primary),
-                  onPressed: () async {
-                    if (_controller.text.trim().isEmpty) return;
-                    final body = _controller.text.trim();
-                    _controller.clear();
-                    await store.sendMessage(widget.conversationId, body);
-                  },
+                  icon: _sending
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send, color: AppColors.primary),
+                  onPressed: _sending ? null : () => _sendText(store),
                 ),
               ],
             ),

@@ -13,7 +13,9 @@ import '../models/user_role.dart';
 import '../services/realtime_service.dart';
 
 class AppStore extends ChangeNotifier {
-  AppStore({ApiClient? api}) : _api = api ?? ApiClient();
+  AppStore({ApiClient? api}) : _api = api ?? ApiClient() {
+    _api.onUnauthorized = _onSessionExpired;
+  }
 
   final ApiClient _api;
 
@@ -247,7 +249,14 @@ class AppStore extends ChangeNotifier {
   Future<void> fetchConversations() async {
     try {
       final list = await _api.getList('/conversations');
-      conversations = list.map(ApiParsers.conversationFromJson).toList();
+      conversations = list.map((json) {
+        final conv = ApiParsers.conversationFromJson(json);
+        final cached = _messageCache[conv.id];
+        if (cached != null && cached.isNotEmpty) {
+          conv.messages.addAll(cached);
+        }
+        return conv;
+      }).toList();
       notifyListeners();
     } catch (e) {
       _error = e.toString();
@@ -284,13 +293,36 @@ class AppStore extends ChangeNotifier {
     }
   }
 
-  Future<void> sendMessage(String partnerId, String body) async {
+  Future<void> sendMessage(
+    String partnerId,
+    String body, {
+    String? attachmentPath,
+  }) async {
+    final trimmedBody = body.trim();
+    final preview = trimmedBody.isNotEmpty
+        ? trimmedBody
+        : attachmentPath != null
+            ? '📷 Sent an image'
+            : '';
+
+    final convIndex = conversations.indexWhere((c) => c.id == partnerId);
+    if (convIndex >= 0 && preview.isNotEmpty) {
+      conversations[convIndex].lastMessage = preview;
+      conversations[convIndex].lastMessageAt = DateTime.now();
+      notifyListeners();
+    }
+
     await _api.post('/messages', body: {
       'receiver_id': int.parse(partnerId),
-      'body': body,
+      if (trimmedBody.isNotEmpty) 'body': trimmedBody,
+      if (attachmentPath != null) 'attachment_path': attachmentPath,
     });
     await fetchMessages(partnerId);
     await fetchConversations();
+  }
+
+  Future<Map<String, dynamic>> uploadMessageAttachment(String filePath) async {
+    return _api.uploadFile('/message-attachments', filePath: filePath);
   }
 
   Future<void> fetchRecords() async {
@@ -383,6 +415,8 @@ class AppStore extends ChangeNotifier {
       'rating': rating,
       if (comment != null) 'comment': comment,
     });
+    await fetchAppointments();
+    notifyListeners();
   }
 
   Future<void> fetchAdminStats() async {
@@ -417,6 +451,12 @@ class AppStore extends ChangeNotifier {
 
   void _setLoading(bool value) {
     _isLoading = value;
+    notifyListeners();
+  }
+
+  Future<void> _onSessionExpired() async {
+    _clearState();
+    _error = 'Your session expired. Please log in again.';
     notifyListeners();
   }
 

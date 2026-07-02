@@ -106,10 +106,15 @@ class MessageController extends Controller
         }
 
         $message = DB::transaction(function () use ($validated, $sender) {
+            $preview = trim($validated['body'] ?? '');
+            if ($preview === '' && ! empty($validated['attachment_path'])) {
+                $preview = '📷 Sent an image';
+            }
+
             $message = Message::create([
                 'sender_id' => $sender->id,
                 'receiver_id' => $validated['receiver_id'],
-                'body' => $validated['body'],
+                'body' => $validated['body'] ?? '',
                 'attachment_path' => $validated['attachment_path'] ?? null,
             ]);
 
@@ -117,7 +122,7 @@ class MessageController extends Controller
                 'user_id' => $validated['receiver_id'],
                 'type' => 'new_message',
                 'title' => 'New Message',
-                'body' => substr($validated['body'], 0, 100),
+                'body' => substr($preview, 0, 100),
             ]);
 
             return $message;
@@ -131,13 +136,13 @@ class MessageController extends Controller
             'sender_id' => $sender->id,
             'message_id' => $message->id,
             'partner_id' => $sender->id,
-            'body_preview' => substr($validated['body'], 0, 80),
+            'body_preview' => substr(trim($validated['body'] ?? '') ?: '📷 Sent an image', 0, 80),
         ]);
 
         PushNotificationService::send(
             $receiver,
             'New Message',
-            substr($validated['body'], 0, 100),
+            substr(trim($validated['body'] ?? '') ?: '📷 Sent an image', 0, 100),
             ['type' => 'new_message', 'sender_id' => (string) $sender->id],
         );
 

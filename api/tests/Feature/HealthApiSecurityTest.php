@@ -236,6 +236,35 @@ class HealthApiSecurityTest extends TestCase
         ])->assertCreated();
     }
 
+    public function test_patient_can_send_message_with_image_attachment(): void
+    {
+        [$patientUser, $patient] = $this->createPatient();
+        [$doctorUser, $doctor] = $this->createDoctor();
+
+        Appointment::create([
+            'patient_id' => $patient->id,
+            'doctor_id' => $doctor->id,
+            'scheduled_at' => now()->addDay(),
+            'type' => 'video',
+            'status' => 'confirmed',
+        ]);
+
+        $token = $patientUser->createToken('test')->plainTextToken;
+
+        $upload = $this->withToken($token)->post('/api/message-attachments', [
+            'file' => \Illuminate\Http\UploadedFile::fake()->image('scan.jpg'),
+        ])->assertCreated();
+
+        $path = $upload->json('path');
+        $this->assertStringStartsWith('message-attachments/', $path);
+
+        $this->withToken($token)->postJson('/api/messages', [
+            'receiver_id' => $doctorUser->id,
+            'attachment_path' => $path,
+        ])->assertCreated()
+            ->assertJsonPath('attachment_path', $path);
+    }
+
     public function test_patient_cannot_message_doctor_without_appointment(): void
     {
         [$patientUser] = $this->createPatient();

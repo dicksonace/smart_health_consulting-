@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 
 import 'api_config.dart';
@@ -31,6 +33,10 @@ class ApiClient {
         handler.next(options);
       },
       onError: (error, handler) {
+        if (error.response?.statusCode == 401) {
+          unawaited(_handleUnauthorized());
+        }
+
         final data = error.response?.data;
         String message = 'Something went wrong. Please try again.';
         if (data is Map && data['message'] != null) {
@@ -53,6 +59,13 @@ class ApiClient {
   }
 
   late final Dio _dio;
+
+  Future<void> Function()? onUnauthorized;
+
+  Future<void> _handleUnauthorized() async {
+    await clearToken();
+    await onUnauthorized?.call();
+  }
 
   Future<String?> _getToken() => TokenStorage.read();
 
@@ -77,6 +90,26 @@ class ApiClient {
       return _asMap(response.data);
     } on DioException catch (e) {
       throw ApiException(e.message ?? 'Request failed', statusCode: e.response?.statusCode);
+    }
+  }
+
+  Future<Map<String, dynamic>> uploadFile(
+    String path, {
+    required String filePath,
+    String fieldName = 'file',
+  }) async {
+    try {
+      final formData = FormData.fromMap({
+        fieldName: await MultipartFile.fromFile(filePath),
+      });
+      final response = await _dio.post(
+        path,
+        data: formData,
+        options: Options(contentType: 'multipart/form-data'),
+      );
+      return _asMap(response.data);
+    } on DioException catch (e) {
+      throw ApiException(e.message ?? 'Upload failed', statusCode: e.response?.statusCode);
     }
   }
 

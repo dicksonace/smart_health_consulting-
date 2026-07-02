@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../../api/api_client.dart';
 import '../../store/app_store.dart';
 import '../../models/appointment.dart';
 import '../../models/notification_item.dart';
@@ -351,11 +352,23 @@ class AppointmentDetailScreen extends StatelessWidget {
                 },
               ),
             ],
-            if (appt.status == AppointmentStatus.completed) ...[
+            if (appt.status == AppointmentStatus.completed && !appt.hasFeedback) ...[
               const SizedBox(height: 16),
               PrimaryButton(
                 label: 'Leave Feedback',
                 onPressed: () => context.push('/patient/feedback/$appointmentId'),
+              ),
+            ],
+            if (appt.status == AppointmentStatus.completed && appt.hasFeedback) ...[
+              const SizedBox(height: 16),
+              const AppCard(
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: AppColors.success),
+                    SizedBox(width: 12),
+                    Expanded(child: Text('You already submitted feedback for this visit.')),
+                  ],
+                ),
               ),
             ],
           ],
@@ -492,6 +505,9 @@ class FeedbackScreen extends StatefulWidget {
 class _FeedbackScreenState extends State<FeedbackScreen> {
   int _rating = 5;
   final _commentController = TextEditingController();
+  bool _submitting = false;
+  String? _message;
+  bool _messageIsError = false;
 
   @override
   void dispose() {
@@ -499,58 +515,165 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     super.dispose();
   }
 
+  void _showMessage(String text, {required bool isError}) {
+    setState(() {
+      _message = text;
+      _messageIsError = isError;
+    });
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(text),
+        backgroundColor: isError ? AppColors.urgent : AppColors.success,
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.fromLTRB(16, 0, 16, bottom > 0 ? bottom + 16 : 16),
+      ),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (_submitting) return;
+
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _submitting = true;
+      _message = null;
+    });
+
+    try {
+      await context.read<AppStore>().submitFeedback(
+            appointmentId: widget.appointmentId,
+            rating: _rating,
+            comment: _commentController.text.trim().isEmpty
+                ? null
+                : _commentController.text.trim(),
+          );
+
+      if (!mounted) return;
+
+      _showMessage('Thank you for your feedback!', isError: false);
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      if (mounted) context.pop();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      final message = e.statusCode == 401
+          ? 'Session expired. Please log in again.'
+          : e.message;
+      _showMessage(message, isError: true);
+    } catch (e) {
+      if (!mounted) return;
+      _showMessage(e.toString(), isError: true);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final appt = context.watch<AppStore>().appointmentById(widget.appointmentId);
+    final alreadySubmitted = appt?.hasFeedback ?? false;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Rate Your Visit')),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
+      resizeToAvoidBottomInset: true,
+      body: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomInset),
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('How was your consultation?', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(5, (i) {
-                return IconButton(
-                  iconSize: 40,
-                  onPressed: () => setState(() => _rating = i + 1),
-                  icon: Icon(
-                    i < _rating ? Icons.star : Icons.star_border,
-                    color: Colors.amber,
+            if (_message != null) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: (_messageIsError ? AppColors.urgent : AppColors.success).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: _messageIsError ? AppColors.urgent : AppColors.success,
                   ),
-                );
-              }),
-            ),
-            const SizedBox(height: 24),
-            TextField(
-              controller: _commentController,
-              maxLines: 4,
-              decoration: const InputDecoration(hintText: 'Share your experience (optional)'),
-            ),
-            const Spacer(),
-            PrimaryButton(
-              label: 'Submit Feedback',
-              onPressed: () async {
-                await context.read<AppStore>().submitFeedback(
-                      appointmentId: widget.appointmentId,
-                      rating: _rating,
-                      comment: _commentController.text.trim().isEmpty
-                          ? null
-                          : _commentController.text.trim(),
-                    );
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Thank you for your feedback!')),
+                ),
+                child: Text(
+                  _message!,
+                  style: TextStyle(
+                    color: _messageIsError ? AppColors.urgent : AppColors.success,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+            if (alreadySubmitted) ...[
+              const Icon(Icons.check_circle, size: 64, color: AppColors.success),
+              const SizedBox(height: 16),
+              const Text(
+                'Feedback already submitted',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Thank you — your rating has been recorded for this visit.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 24),
+              PrimaryButton(
+                label: 'Go Back',
+                onPressed: () => context.pop(),
+              ),
+            ] else ...[
+              if (appt != null) ...[
+                Text(
+                  'Dr. ${appt.doctorName}',
+                  style: const TextStyle(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 8),
+              ],
+              const Text(
+                'How was your consultation?',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(5, (i) {
+                  return IconButton(
+                    iconSize: 40,
+                    onPressed: _submitting ? null : () => setState(() => _rating = i + 1),
+                    icon: Icon(
+                      i < _rating ? Icons.star : Icons.star_border,
+                      color: Colors.amber,
+                    ),
                   );
-                  context.pop();
-                }
-              },
-            ),
+                }),
+              ),
+              const SizedBox(height: 24),
+              TextField(
+                controller: _commentController,
+                maxLines: 4,
+                enabled: !_submitting,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _submit(),
+                decoration: const InputDecoration(
+                  hintText: 'Share your experience (optional)',
+                ),
+              ),
+            ],
           ],
         ),
       ),
+      bottomNavigationBar: alreadySubmitted
+          ? null
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+                child: PrimaryButton(
+                  label: _submitting ? 'Submitting...' : 'Submit Feedback',
+                  onPressed: _submitting ? null : () => _submit(),
+                ),
+              ),
+            ),
     );
   }
 }

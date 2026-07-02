@@ -5,6 +5,8 @@ class ChatMessage {
     required this.body,
     required this.sentAt,
     this.isRead = false,
+    this.attachmentUrl,
+    this.attachmentMimeType,
   });
 
   final String id;
@@ -12,6 +14,10 @@ class ChatMessage {
   final String body;
   final DateTime sentAt;
   bool isRead;
+  final String? attachmentUrl;
+  final String? attachmentMimeType;
+
+  bool get hasAttachment => attachmentUrl != null && attachmentUrl!.isNotEmpty;
 }
 
 class Conversation {
