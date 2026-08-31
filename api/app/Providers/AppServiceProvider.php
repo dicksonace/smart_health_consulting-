@@ -8,6 +8,7 @@ use App\Policies\MessagePolicy;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -26,6 +27,13 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        if ($root = config('app.url')) {
+            URL::forceRootUrl($root);
+            if (str_starts_with((string) $root, 'https://')) {
+                URL::forceScheme('https');
+            }
+        }
+
         RateLimiter::for('auth', fn ($request) => Limit::perMinute(10)->by($request->ip()));
         RateLimiter::for('symptom-check', fn ($request) => Limit::perMinute(30)->by($request->ip()));
 

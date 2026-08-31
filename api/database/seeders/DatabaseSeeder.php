@@ -137,22 +137,17 @@ class DatabaseSeeder extends Seeder
 
         $slots = [];
         foreach ($doctors->take(2) as $doctor) {
-            for ($day = 1; $day <= 5; $day++) {
+            for ($day = 0; $day <= 14; $day++) {
                 $date = now()->addDays($day)->toDateString();
-                $slots[] = DoctorAvailability::create([
-                    'doctor_id' => $doctor->id,
-                    'date' => $date,
-                    'start_time' => '09:00',
-                    'end_time' => '09:30',
-                    'status' => 'available',
-                ]);
-                $slots[] = DoctorAvailability::create([
-                    'doctor_id' => $doctor->id,
-                    'date' => $date,
-                    'start_time' => '10:00',
-                    'end_time' => '10:30',
-                    'status' => 'available',
-                ]);
+                foreach ([['09:00', '09:30'], ['10:00', '10:30'], ['14:00', '14:30'], ['15:00', '15:30']] as [$start, $end]) {
+                    $slots[] = DoctorAvailability::create([
+                        'doctor_id' => $doctor->id,
+                        'date' => $date,
+                        'start_time' => $start,
+                        'end_time' => $end,
+                        'status' => 'available',
+                    ]);
+                }
             }
         }
 

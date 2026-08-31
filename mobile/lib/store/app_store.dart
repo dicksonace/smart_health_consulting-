@@ -134,9 +134,8 @@ class AppStore extends ChangeNotifier {
   }
 
   Future<Doctor?> fetchDoctor(String doctorId) async {
-    if (_doctorCache.containsKey(doctorId)) {
-      return _doctorCache[doctorId];
-    }
+    // Always load doctor detail + slots — list cache has no availability.
+    _setLoading(true);
     try {
       final data = await _api.get('/doctors/$doctorId');
       final doctor = ApiParsers.doctorFromJson(data);
@@ -154,6 +153,8 @@ class AppStore extends ChangeNotifier {
       _error = e.toString();
       notifyListeners();
       return null;
+    } finally {
+      _setLoading(false);
     }
   }
 

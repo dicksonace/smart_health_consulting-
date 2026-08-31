@@ -54,12 +54,30 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
     final doctor = store.doctorById(widget.doctorId);
     final slots = store.slotsForDoctor(widget.doctorId);
 
-    if (doctor == null || slots.isEmpty) {
+    if (store.isLoading && slots.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Book Appointment')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (doctor == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Book Appointment')),
+        body: const EmptyState(
+          icon: Icons.person_off,
+          message: 'Doctor not found',
+        ),
+      );
+    }
+
+    if (slots.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: const Text('Book Appointment')),
         body: EmptyState(
           icon: Icons.event_busy,
-          message: doctor == null ? 'Doctor not found' : 'No available slots',
+          message: 'No available slots for ${doctor.name} right now.\n'
+              'Please check again later or choose another doctor.',
         ),
       );
     }
