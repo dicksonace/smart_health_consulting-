@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../store/app_store.dart';
 import '../../models/appointment.dart';
+import '../../models/notification_item.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common_widgets.dart';
 
@@ -158,13 +159,22 @@ class DoctorAppointmentDetailScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
+            if (appt.type == AppointmentType.video &&
+                appt.status == AppointmentStatus.confirmed) ...[
+              PrimaryButton(
+                label: 'Join Video Call',
+                icon: Icons.videocam,
+                onPressed: () => context.push('/doctor/call/$appointmentId'),
+              ),
+              const SizedBox(height: 12),
+            ],
             PrimaryButton(
               label: 'View Patient History',
               onPressed: () => context.push('/doctor/patients/${appt.patientId}'),
             ),
             const SizedBox(height: 12),
             PrimaryButton(
-              label: 'Start Consultation',
+              label: 'Start Consultation Notes',
               icon: Icons.medical_services,
               onPressed: () => context.push('/doctor/consult/$appointmentId'),
             ),
@@ -183,6 +193,8 @@ class ManageAvailabilityScreen extends StatefulWidget {
 }
 
 class _ManageAvailabilityScreenState extends State<ManageAvailabilityScreen> {
+  bool _adding = false;
+
   @override
   void initState() {
     super.initState();
@@ -190,6 +202,153 @@ class _ManageAvailabilityScreenState extends State<ManageAvailabilityScreen> {
       context.read<AppStore>().fetchDoctorAvailability();
     });
   }
+
+  Future<void> _addSlot() async {
+    DateTime selectedDate = DateTime.now();
+    TimeOfDay start = const TimeOfDay(hour: 9, minute: 0);
+    TimeOfDay end = const TimeOfDay(hour: 10, minute: 0);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            String fmt(TimeOfDay t) =>
+                '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+            return AlertDialog(
+              title: const Text('Add Time Slot'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Date'),
+                    subtitle: Text(DateFormat('EEE, MMM d, y').format(selectedDate)),
+                    trailing: const Icon(Icons.calendar_today),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 90)),
+                      );
+                      if (picked != null) {
+                        setDialogState(() => selectedDate = picked);
+                      }
+                    },
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Start time'),
+                    subtitle: Text(fmt(start)),
+                    trailing: const Icon(Icons.access_time),
+                    onTap: () async {
+                      final picked = await showTimePicker(context: context, initialTime: start);
+                      if (picked != null) {
+                        setDialogState(() => start = picked);
+                      }
+                    },
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('End time'),
+                    subtitle: Text(fmt(end)),
+                    trailing: const Icon(Icons.access_time),
+                    onTap: () async {
+                      final picked = await showTimePicker(context: context, initialTime: end);
+                      if (picked != null) {
+                        setDialogState(() => end = picked);
+                      }
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: const Text('Add'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final startMinutes = start.hour * 60 + start.minute;
+    final endMinutes = end.hour * 60 + end.minute;
+    if (endMinutes <= startMinutes) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('End time must be after start time.')),
+      );
+      return;
+    }
+
+    setState(() => _adding = true);
+    try {
+      await context.read<AppStore>().addAvailabilitySlot(
+            date: selectedDate,
+            startTime:
+                '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}',
+            endTime:
+                '${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}',
+          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Time slot added.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _adding = false);
+    }
+  }
+
+  Future<void> _deleteSlot(TimeSlot slot) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete slot?'),
+        content: Text(
+          '${DateFormat('MMM d').format(slot.date)} · ${slot.startTime} - ${slot.endTime}',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await context.read<AppStore>().deleteAvailabilitySlot(slot.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Slot deleted.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
+      }
+    }
+  }
+
+  String _statusLabel(TimeSlot slot) => slot.isAvailable ? 'Available' : 'Unavailable';
 
   @override
   Widget build(BuildContext context) {
@@ -211,35 +370,45 @@ class _ManageAvailabilityScreenState extends State<ManageAvailabilityScreen> {
           else if (slots.isEmpty)
             const EmptyState(icon: Icons.event_busy, message: 'No slots configured')
           else
-          ...slots.map((slot) => AppCard(
-                child: Row(
-                  children: [
-                    Icon(
-                      slot.isAvailable ? Icons.check_circle : Icons.cancel,
-                      color: slot.isAvailable ? AppColors.success : AppColors.unavailable,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text('${slot.startTime} - ${slot.endTime}'),
-                    ),
-                    Text(
-                      slot.isAvailable ? 'Available' : 'Booked',
-                      style: TextStyle(
+            ...slots.map((slot) => AppCard(
+                  child: Row(
+                    children: [
+                      Icon(
+                        slot.isAvailable ? Icons.check_circle : Icons.cancel,
                         color: slot.isAvailable ? AppColors.success : AppColors.unavailable,
-                        fontWeight: FontWeight.w600,
                       ),
-                    ),
-                  ],
-                ),
-              )),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              DateFormat('EEE, MMM d').format(slot.date),
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            Text('${slot.startTime} - ${slot.endTime}'),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        _statusLabel(slot),
+                        style: TextStyle(
+                          color: slot.isAvailable ? AppColors.success : AppColors.unavailable,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (slot.isAvailable)
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () => _deleteSlot(slot),
+                        ),
+                    ],
+                  ),
+                )),
           const SizedBox(height: 16),
           SecondaryButton(
-            label: 'Add Time Slot (mock)',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Slot added (mock)')),
-              );
-            },
+            label: _adding ? 'Adding...' : 'Add Time Slot',
+            onPressed: _adding ? () {} : _addSlot,
           ),
         ],
       ),

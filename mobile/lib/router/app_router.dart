@@ -3,12 +3,12 @@ import 'package:go_router/go_router.dart';
 import '../store/app_store.dart';
 import '../models/appointment.dart';
 import '../models/notification_item.dart';
-import '../models/user_role.dart';
 import '../screens/admin/admin_screens.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
 import '../screens/auth/splash_screen.dart';
 import '../screens/doctor/doctor_screens.dart';
+import '../screens/shared/video_call_screen.dart';
 import '../screens/patient/appointment_screens.dart';
 import '../screens/patient/doctor_list_screen.dart';
 import '../screens/patient/patient_dashboard_screen.dart';
@@ -27,7 +27,8 @@ class AppRouter {
         final isAuth = loc == '/' ||
             loc.startsWith('/login') ||
             loc.startsWith('/register') ||
-            loc.startsWith('/forgot-password');
+            loc.startsWith('/forgot-password') ||
+            loc.startsWith('/reset-password');
 
         if (!loggedIn && !isAuth) return '/login';
         if (loggedIn && (loc == '/login' || loc == '/')) {
@@ -39,11 +40,28 @@ class AppRouter {
         GoRoute(path: '/', builder: (_, __) => const SplashScreen()),
         GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
         GoRoute(path: '/forgot-password', builder: (_, __) => const ForgotPasswordScreen()),
+        GoRoute(
+          path: '/reset-password',
+          builder: (_, state) {
+            final extra = state.extra as Map<String, dynamic>? ?? {};
+            return ResetPasswordScreen(
+              email: extra['email'] as String? ?? '',
+              token: extra['token'] as String? ?? '',
+            );
+          },
+        ),
         GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),
-        GoRoute(path: '/register/role', builder: (_, __) => const RegisterRoleScreen()),
+        GoRoute(
+          path: '/register/role',
+          builder: (_, state) => RegisterRoleScreen(
+            draft: Map<String, dynamic>.from(state.extra as Map? ?? {}),
+          ),
+        ),
         GoRoute(
           path: '/register/details',
-          builder: (_, state) => RegisterDetailsScreen(role: state.extra as UserRole),
+          builder: (_, state) => RegisterDetailsScreen(
+            draft: Map<String, dynamic>.from(state.extra as Map? ?? {}),
+          ),
         ),
 
         // Patient routes
@@ -113,6 +131,10 @@ class AppRouter {
         GoRoute(
           path: '/doctor/appointments/:id',
           builder: (_, state) => DoctorAppointmentDetailScreen(appointmentId: state.pathParameters['id']!),
+        ),
+        GoRoute(
+          path: '/doctor/call/:id',
+          builder: (_, state) => VideoCallScreen(appointmentId: state.pathParameters['id']!),
         ),
         GoRoute(path: '/doctor/availability', builder: (_, __) => const ManageAvailabilityScreen()),
         GoRoute(

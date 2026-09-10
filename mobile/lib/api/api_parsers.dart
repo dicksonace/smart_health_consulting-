@@ -164,6 +164,7 @@ class ApiParsers {
 
   static ChatMessage messageFromJson(Map<String, dynamic> json) {
     final attachmentPath = json['attachment_path'] as String?;
+    final metadata = json['metadata'];
     return ChatMessage(
       id: json['id'].toString(),
       senderId: json['sender_id'].toString(),
@@ -172,6 +173,10 @@ class ApiParsers {
       isRead: json['read_at'] != null,
       attachmentUrl: _attachmentUrlFromPath(attachmentPath),
       attachmentMimeType: _mimeFromPath(attachmentPath),
+      messageType: json['message_type'] as String? ?? 'text',
+      metadata: metadata is Map
+          ? Map<String, dynamic>.from(metadata)
+          : null,
     );
   }
 

@@ -7,6 +7,8 @@ class ChatMessage {
     this.isRead = false,
     this.attachmentUrl,
     this.attachmentMimeType,
+    this.messageType = 'text',
+    this.metadata,
   });
 
   final String id;
@@ -16,8 +18,15 @@ class ChatMessage {
   bool isRead;
   final String? attachmentUrl;
   final String? attachmentMimeType;
+  final String messageType;
+  final Map<String, dynamic>? metadata;
 
   bool get hasAttachment => attachmentUrl != null && attachmentUrl!.isNotEmpty;
+
+  bool get isCallEvent =>
+      messageType == 'call_started' ||
+      messageType == 'call_ended' ||
+      messageType == 'call_missed';
 }
 
 class Conversation {

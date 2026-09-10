@@ -90,6 +90,78 @@ class AppStore extends ChangeNotifier {
     await login(ApiConfig.demoEmails[key]!, ApiConfig.demoPassword);
   }
 
+  Future<void> register({
+    required String name,
+    required String email,
+    required String password,
+    required UserRole role,
+    String? phone,
+    String? specialty,
+    double? consultationFee,
+    String? qualifications,
+    int? yearsExperience,
+    String? bio,
+    String? dateOfBirth,
+    String? gender,
+    String? bloodGroup,
+    String? allergies,
+  }) async {
+    _setLoading(true);
+    try {
+      final data = await _api.post('/register', body: {
+        'name': name,
+        'email': email,
+        'password': password,
+        'password_confirmation': password,
+        'role': role == UserRole.doctor ? 'doctor' : 'patient',
+        if (phone != null && phone.isNotEmpty) 'phone': phone,
+        if (role == UserRole.doctor) ...{
+          'specialty': specialty,
+          'consultation_fee': consultationFee ?? 0,
+          if (qualifications != null && qualifications.isNotEmpty)
+            'qualifications': qualifications,
+          if (yearsExperience != null) 'years_experience': yearsExperience,
+          if (bio != null && bio.isNotEmpty) 'bio': bio,
+        },
+        if (role == UserRole.patient) ...{
+          if (dateOfBirth != null && dateOfBirth.isNotEmpty)
+            'date_of_birth': dateOfBirth,
+          if (gender != null && gender.isNotEmpty) 'gender': gender,
+          if (bloodGroup != null && bloodGroup.isNotEmpty)
+            'blood_group': bloodGroup,
+          if (allergies != null && allergies.isNotEmpty) 'allergies': allergies,
+        },
+      });
+      await _api.saveToken(data['token'] as String);
+      _currentUser =
+          ApiParsers.userFromJson(data['user'] as Map<String, dynamic>);
+      await refreshAll();
+      _error = null;
+    } catch (e) {
+      _error = e.toString();
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<Map<String, dynamic>> forgotPassword(String email) async {
+    return _api.post('/forgot-password', body: {'email': email});
+  }
+
+  Future<void> resetPassword({
+    required String email,
+    required String token,
+    required String password,
+  }) async {
+    await _api.post('/reset-password', body: {
+      'email': email,
+      'token': token,
+      'password': password,
+      'password_confirmation': password,
+    });
+  }
+
   Future<void> logout() async {
     try {
       await _api.post('/logout');
@@ -372,6 +444,41 @@ class AppStore extends ChangeNotifier {
     return _api.get('/appointments/$appointmentId/video-room');
   }
 
+  Future<Map<String, dynamic>> startVideoCall(String appointmentId) async {
+    final result = await _api.post('/appointments/$appointmentId/video-call/start');
+    try {
+      await fetchConversations();
+    } catch (_) {}
+    return result;
+  }
+
+  Future<Map<String, dynamic>> endVideoCall(
+    String appointmentId, {
+    int? sessionId,
+    String reason = 'hangup',
+  }) async {
+    try {
+      final result = await _api.post('/appointments/$appointmentId/video-call/end', body: {
+        if (sessionId != null) 'session_id': sessionId,
+        'reason': reason,
+      });
+      try {
+        await fetchConversations();
+      } catch (_) {}
+      return result;
+    } catch (e) {
+      // Second participant may hang up after the first already ended the session.
+      final message = e.toString().toLowerCase();
+      if (message.contains('no active call') || message.contains('404')) {
+        try {
+          await fetchConversations();
+        } catch (_) {}
+        return {'already_ended': true};
+      }
+      rethrow;
+    }
+  }
+
   Future<void> registerDeviceToken(String fcmToken) async {
     try {
       await _api.post('/device-token', body: {'fcm_token': fcmToken});
@@ -446,6 +553,31 @@ class AppStore extends ChangeNotifier {
       _error = e.toString();
       notifyListeners();
     }
+  }
+
+  Future<void> addAvailabilitySlot({
+    required DateTime date,
+    required String startTime,
+    required String endTime,
+  }) async {
+    _setLoading(true);
+    try {
+      await _api.post('/doctor/availability', body: {
+        'date':
+            '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
+        'start_time': startTime,
+        'end_time': endTime,
+        'status': 'available',
+      });
+      await fetchDoctorAvailability();
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<void> deleteAvailabilitySlot(String slotId) async {
+    await _api.delete('/doctor/availability/$slotId');
+    await fetchDoctorAvailability();
   }
 
   List<TimeSlot> get doctorAvailability => _doctorSlots;

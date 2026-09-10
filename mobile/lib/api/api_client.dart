@@ -132,13 +132,14 @@ class ApiClient {
 
   Future<List<Map<String, dynamic>>> getList(String path, {Map<String, dynamic>? query}) async {
     final data = await get(path, query: query);
-    final items = data['data'];
+    final items = data['data'] ?? data['items'];
     if (items is List) {
       return items
           .whereType<Map>()
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
     }
+    // Some endpoints return a bare JSON array; ApiClient wraps that as {'data': [...]}.
     return [];
   }
 

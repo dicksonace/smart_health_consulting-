@@ -214,6 +214,10 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
   }
 
   Widget _buildMessageBubble(ChatMessage msg, bool isMe) {
+    if (msg.isCallEvent) {
+      return _buildCallEventCard(msg);
+    }
+
     final textColor = isMe ? Colors.white : AppColors.textPrimary;
     final timeColor = isMe ? Colors.white70 : AppColors.textSecondary;
 
@@ -269,6 +273,96 @@ class _ChatThreadScreenState extends State<ChatThreadScreen> {
             Text(
               DateFormat('h:mm a').format(msg.sentAt),
               style: TextStyle(fontSize: 10, color: timeColor),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCallEventCard(ChatMessage msg) {
+    final isEnded = msg.messageType == 'call_ended';
+    final isMissed = msg.messageType == 'call_missed';
+    final icon = isMissed
+        ? Icons.call_missed
+        : isEnded
+            ? Icons.call_end
+            : Icons.videocam;
+    final color = isMissed
+        ? AppColors.unavailable
+        : isEnded
+            ? AppColors.textSecondary
+            : AppColors.primary;
+
+    final caller = msg.metadata?['caller_name']?.toString();
+    final callee = msg.metadata?['callee_name']?.toString();
+    final direction = msg.metadata?['direction_label']?.toString() ??
+        (caller != null && callee != null ? '$caller called $callee' : null);
+
+    final title = isMissed
+        ? 'Missed video call'
+        : isEnded
+            ? 'Video call ended'
+            : 'Video call started';
+
+    final endedBy = msg.metadata?['ended_by_name']?.toString();
+    final durationSeconds = msg.metadata?['duration_seconds'];
+    String? durationLabel;
+    if (durationSeconds is int) {
+      final m = durationSeconds ~/ 60;
+      final s = durationSeconds % 60;
+      durationLabel = m > 0 ? '${m}m ${s}s' : '${s}s';
+    } else if (durationSeconds != null) {
+      final parsed = int.tryParse(durationSeconds.toString());
+      if (parsed != null) {
+        final m = parsed ~/ 60;
+        final s = parsed % 60;
+        durationLabel = m > 0 ? '${m}m ${s}s' : '${s}s';
+      }
+    }
+
+    final details = <String>[
+      if (direction != null && direction.isNotEmpty) direction,
+      if (isEnded && durationLabel != null) durationLabel,
+      if (isEnded && endedBy != null && endedBy.isNotEmpty) 'Ended by $endedBy',
+      if (!isEnded) DateFormat('h:mm a').format(msg.sentAt),
+    ];
+
+    return Align(
+      alignment: Alignment.center,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.9),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 18, color: color),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: TextStyle(fontWeight: FontWeight.w700, color: color)),
+                  if (details.isNotEmpty)
+                    Text(
+                      details.join(' · '),
+                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                ],
+              ),
             ),
           ],
         ),

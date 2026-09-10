@@ -3,8 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import 'package:webview_flutter/webview_flutter.dart';
-
 import '../../api/api_client.dart';
 import '../../store/app_store.dart';
 import '../../models/appointment.dart';
@@ -412,101 +410,6 @@ class _DetailRow extends StatelessWidget {
           Expanded(child: Text(text)),
         ],
       ),
-    );
-  }
-}
-
-class VideoCallScreen extends StatefulWidget {
-  const VideoCallScreen({super.key, required this.appointmentId});
-
-  final String appointmentId;
-
-  @override
-  State<VideoCallScreen> createState() => _VideoCallScreenState();
-}
-
-class _VideoCallScreenState extends State<VideoCallScreen> {
-  Map<String, dynamic>? _room;
-  bool _loading = true;
-  WebViewController? _webController;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadRoom());
-  }
-
-  Future<void> _loadRoom() async {
-    try {
-      final data = await context.read<AppStore>().fetchVideoRoom(widget.appointmentId);
-      if (!mounted) return;
-      setState(() {
-        _room = data;
-        _loading = false;
-      });
-      if (data['can_join'] == true && data['join_url'] != null) {
-        _webController = WebViewController()
-          ..setJavaScriptMode(JavaScriptMode.unrestricted)
-          ..loadRequest(Uri.parse(data['join_url'] as String));
-        setState(() {});
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final appt = context.watch<AppStore>().appointmentById(widget.appointmentId);
-    final canJoin = _room?['can_join'] == true;
-    final joinUrl = _room?['join_url'] as String?;
-
-    return Scaffold(
-      backgroundColor: Colors.black87,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        title: Text(appt?.doctorName ?? 'Video Call'),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator(color: Colors.white))
-          : canJoin && _webController != null
-              ? WebViewWidget(controller: _webController!)
-              : Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.videocam_off, size: 64, color: Colors.white54),
-                        const SizedBox(height: 16),
-                        Text(
-                          canJoin ? 'Loading video room...' : 'Video opens 5 minutes before your appointment.',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.white70),
-                        ),
-                        if (_room?['opens_at'] != null) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            'Opens: ${_room!['opens_at']}',
-                            style: const TextStyle(color: Colors.white54, fontSize: 12),
-                          ),
-                        ],
-                        if (joinUrl != null && !canJoin) ...[
-                          const SizedBox(height: 24),
-                          Text('Room: ${_room?['room_name']}', style: const TextStyle(color: Colors.white38, fontSize: 12)),
-                        ],
-                        const SizedBox(height: 24),
-                        TextButton(
-                          onPressed: () => context.pop(),
-                          child: const Text('Go back', style: TextStyle(color: Colors.white)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
     );
   }
 }

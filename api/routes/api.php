@@ -61,6 +61,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/appointments', [AppointmentController::class, 'index']);
     Route::post('/appointments', [AppointmentController::class, 'store'])->middleware('role:patient');
     Route::get('/appointments/{appointment}/video-room', [VideoCallController::class, 'show']);
+    Route::post('/appointments/{appointment}/video-call/start', [VideoCallController::class, 'start']);
+    Route::post('/appointments/{appointment}/video-call/end', [VideoCallController::class, 'end']);
     Route::patch('/appointments/{appointment}', [AppointmentController::class, 'update']);
     Route::delete('/appointments/{appointment}', [AppointmentController::class, 'destroy']);
 
